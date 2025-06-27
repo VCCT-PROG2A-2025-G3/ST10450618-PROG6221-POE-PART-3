@@ -156,7 +156,118 @@ namespace PROG6221_POE_PART_3
         // --- Task Management ---
 
         // Handles adding a new task from the UI
-        
+        private void AddTask_Click(object sender, RoutedEventArgs e)
+        {
+            string name = TaskNameBox.Text.Trim();
+            string desc = TaskDescBox.Text.Trim();
+            int days = 0;
+            int.TryParse(TaskReminderBox.Text.Trim(), out days);
+            if (!string.IsNullOrEmpty(name))
+            {
+                bot.ProcessInput($"add task- {name}");
+                bot.ProcessInput(desc);
+                if (days > 0)
+                    bot.ProcessInput($"remind me in {days} days");
+                LoadTasks();
+            }
+        }
+
+        // Handles marking a selected task as complete
+        private void CompleteTask_Click(object sender, RoutedEventArgs e)
+        {
+            if (TasksList.SelectedItem is string task)
+            {
+                var name = task.Split(':')[0].Split(']')[1].Trim();
+                bot.ProcessInput($"complete task- {name}");
+                LoadTasks();
+            }
+        }
+
+        // Handles deleting a selected task
+        private void DeleteTask_Click(object sender, RoutedEventArgs e)
+        {
+            if (TasksList.SelectedItem is string task)
+            {
+                var name = task.Split(':')[0].Split(']')[1].Trim();
+                bot.ProcessInput($"delete task- {name}");
+                LoadTasks();
+            }
+        }
+
+        // Loads all tasks from CyberBot and displays them in the UI
+        private void LoadTasks()
+        {
+            TasksList.Items.Clear();
+            var tasks = bot.GetTasks();
+            foreach (var t in tasks)
+                TasksList.Items.Add(t.ToString());
+        }
+
+        // --- Game (Quiz) ---
+
+        // Starts the quiz game and clears previous game history
+        private void StartQuiz_Click(object sender, RoutedEventArgs e)
+        {
+            GameHistory.Items.Clear();
+            bot.ProcessInput("play game");
+        }
+        // Example: Call this after bot.ProcessInput("play game") if you want to show answer buttons
+
+        // Handles quiz answer button clicks (A, B, C, D)
+        private void QuizAnswerButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is Button btn)
+            {
+                string answer = btn.Content.ToString().ToLower(); // "a", "b", "c", or "d"
+                                                                  // Send the answer to the bot as if the user typed it
+                bot.ProcessInput(answer);
+            }
+        }
+
+        // Dynamically creates answer buttons for quiz options
+        private void ShowAnswerButtons(string[] options)
+        {
+            AnswerButtonsPanel.Children.Clear();
+            foreach (var option in options)
+            {
+                var btn = new Button
+                {
+                    Content = option,
+                    Margin = new Thickness(5),
+                    Padding = new Thickness(10)
+                };
+                btn.Click += AnswerButton_Click;
+                AnswerButtonsPanel.Children.Add(btn);
+            }
+        }
+
+        // Handles answer button click, sends answer to bot, and clears buttons
+        private void AnswerButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is Button btn && btn.Content is string answer)
+            {
+                AppendUserMessage(answer);
+                bot.ProcessInput(answer);
+                // Optionally clear buttons or update UI for next question
+                AnswerButtonsPanel.Children.Clear();
+            }
+        }
+
+        // --- Activity Log ---
+
+        // Loads activity log entries and displays them in the UI
+        private void LoadActivityLog()
+        {
+            ActivityLogList.Items.Clear();
+            var allEntries = bot.GetActivityLog().ToList();
+            if (!showAllActivityLog && allEntries.Count > 10)
+            {
+                // Show only the most recent 10
+                allEntries = allEntries.Skip(allEntries.Count - 10).ToList();
+            }
+            foreach (var entry in allEntries)
+                ActivityLogList.Items.Add(entry);
+        }
 
         // REFERENCES:
         // ChatGPT was used to generate prompts and responses for the CyberBot class.

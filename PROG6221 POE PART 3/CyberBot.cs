@@ -178,6 +178,8 @@ namespace PROG6221_POE_PART_3
                 return;
             }
 
+            input = input.ToLower().Trim();
+            var (intent, details, reminderDate) = ParseUserInput(input);
 
             // Start quiz if requested
             if (intent == "quiz")
@@ -264,7 +266,163 @@ namespace PROG6221_POE_PART_3
                 return;
             }
 
-            
+            // Add reminder as a task
+            if (intent == "reminder" && !string.IsNullOrWhiteSpace(details))
+            {
+                var task = new TaskItem { Title = details, Description = details, Reminder = reminderDate, Completed = false };
+                tasks.Add(task);
+                if (reminderDate.HasValue)
+                {
+                    Respond($"Reminder set for \"{details}\" on {reminderDate.Value.ToShortDateString()}.");
+                    LogAction($"Reminder set for \"{details}\" on {reminderDate.Value:g}.");
+                }
+                else
+                {
+                    Respond($"Reminder set for \"{details}\" (no specific date detected).");
+                    LogAction($"Reminder set for \"{details}\" (no specific date).");
+                }
+                return;
+            }
+            // Add a new task
+            if (intent == "addtask" && !string.IsNullOrWhiteSpace(details))
+            {
+                var task = new TaskItem { Title = details, Description = details, Completed = false };
+                tasks.Add(task);
+                Respond($"Task added: \"{details}\". Would you like to set a reminder for this?");
+                LogAction($"Task added: \"{details}\".");
+                return;
+            }
+            // Multi-step task creation: set description
+            if (awaitingTaskDescription && pendingTask != null)
+            {
+                pendingTask.Description = input;
+                awaitingTaskDescription = false;
+                awaitingTaskReminder = true;
+                Respond("Would you like a reminder for this task? (e.g., \"Remind me in 3 days\" or \"No reminder\")");
+                LogAction($"Task description set for \"{pendingTask.Title}\".");
+                return;
+            }
+            // Multi-step task creation: set reminder
+            if (awaitingTaskReminder && pendingTask != null)
+            {
+                if (input.StartsWith("remind me in"))
+                {
+                    var parts = input.Split(new[] { "remind me in", "days" }, StringSplitOptions.RemoveEmptyEntries);
+                    if (parts.Length > 0 && int.TryParse(parts[0].Trim(), out int days))
+                    {
+                        pendingTask.Reminder = DateTime.Now.AddDays(days);
+                        Respond($"Reminder set for {days} days from now.");
+                        LogAction($"Reminder set for \"{pendingTask.Title}\" in {days} days.");
+                    }
+                    else
+                    {
+                        Respond("Sorry, I couldn't understand the reminder. No reminder set.");
+                        LogAction($"Failed to set reminder for \"{pendingTask.Title}\".");
+                    }
+                }
+                else if (input.StartsWith("remind me on"))
+                {
+                    var dateStr = input.Replace("remind me on", "").Trim();
+                    if (DateTime.TryParse(dateStr, out DateTime date))
+                    {
+                        pendingTask.Reminder = date;
+                        Respond($"Reminder set for {date:g}.");
+                        LogAction($"Reminder set for \"{pendingTask.Title}\" on {date:g}.");
+                    }
+                    else
+                    {
+                        Respond("Sorry, I couldn't understand the date. No reminder set.");
+                        LogAction($"Failed to set reminder for \"{pendingTask.Title}\".");
+                    }
+                }
+                else
+                {
+                    Respond("No reminder set for this task.");
+                    LogAction($"No reminder set for \"{pendingTask.Title}\".");
+                }
+                tasks.Add(pendingTask);
+                Respond("Task added successfully!");
+                LogAction($"Task added: \"{pendingTask.Title}\".");
+                pendingTask = null;
+                awaitingTaskReminder = false;
+                return;
+            }
+
+            // Start multi-step task creation
+            if (input.StartsWith("add task-"))
+            {
+                string title = input.Substring("add task-".Length).Trim();
+                if (string.IsNullOrEmpty(title))
+                {
+                    Respond("Please provide a title for your task.");
+                    return;
+                }
+                pendingTask = new TaskItem { Title = title };
+                awaitingTaskDescription = true;
+                Respond($"Task \"{title}\" added. Please provide a description.");
+                LogAction($"Task started: \"{title}\".");
+                return;
+            }
+            // View all tasks
+            if (input == "view tasks")
+            {
+                if (tasks.Count == 0)
+                {
+                    Respond("You have no tasks at the moment.");
+                }
+                else
+                {
+                    Respond("Here are your tasks:");
+                    foreach (var t in tasks)
+                    {
+                        Respond(t.ToString());
+                    }
+                }
+                LogAction("Viewed tasks.");
+                return;
+            }
+            // Mark a task as complete
+            if (input.StartsWith("complete task-"))
+            {
+                string title = input.Substring("complete task-".Length).Trim();
+                var task = tasks.FirstOrDefault(t => t.Title.Equals(title, StringComparison.OrdinalIgnoreCase));
+                if (task != null)
+                {
+                    task.Completed = true;
+                    Respond($"Task \"{title}\" marked as completed.");
+                    LogAction($"Task completed: \"{title}\".");
+                }
+                else
+                {
+                    Respond($"Task \"{title}\" not found.");
+                }
+                return;
+            }
+            // Delete a task
+            if (input.StartsWith("delete task-"))
+            {
+                string title = input.Substring("delete task-".Length).Trim();
+                var task = tasks.FirstOrDefault(t => t.Title.Equals(title, StringComparison.OrdinalIgnoreCase));
+                if (task != null)
+                {
+                    tasks.Remove(task);
+                    Respond($"Task \"{title}\" deleted.");
+                    LogAction($"Task deleted: \"{title}\".");
+                }
+                else
+                {
+                    Respond($"Task \"{title}\" not found.");
+                }
+                return;
+            }
+
+            // Trigger reminders for due tasks
+            foreach (var t in tasks.Where(t => t.Reminder.HasValue && !t.Completed && t.Reminder.Value <= DateTime.Now).ToList())
+            {
+                Respond($"Reminder: Task \"{t.Title}\" is due! {t.Description}");
+                t.Reminder = null;
+                LogAction($"Reminder triggered for \"{t.Title}\".");
+            }
 
             // Sentiment detection and response
             foreach (var sentiment in sentimentResponses.Keys)
@@ -441,7 +599,150 @@ namespace PROG6221_POE_PART_3
             Respond(responses[index]);
         }
 
-        
+        // NLP Simulation: Parses user input and returns intent, details, and optional reminder date
+        private (string intent, string details, DateTime? reminderDate) ParseUserInput(string input)
+        {
+            input = input.ToLower();
+
+            // 1. Recognize greetings
+            if (Regex.IsMatch(input, @"\b(hi|hello|hey|greetings)\b"))
+                return ("greeting", "", null);
+
+            // 2. Recognize gratitude
+            if (Regex.IsMatch(input, @"\b(thank(s| you)?|appreciate)\b"))
+                return ("thanks", "", null);
+
+            // 3. Recognize quiz/game
+            if (Regex.IsMatch(input, @"\b(play|start|begin|launch)\b.*\b(quiz|game)\b") ||
+                input.Contains("quiz") || input.Contains("mini-game") || input.Contains("play game") || input.Contains("start quiz"))
+                return ("quiz", "", null);
+
+            // 4. Recognize task creation
+            if (Regex.IsMatch(input, @"\b(add|create|make|new)\b.*\b(task|reminder)\b") ||
+                input.Contains("add a task to") || input.Contains("add task to") || input.Contains("create a task to") ||
+                input.StartsWith("add task") || input.StartsWith("create task"))
+            {
+                string details = "";
+                var match = Regex.Match(input, @"\b(add|create|make|new)\b.*\b(task|reminder)\b(.*)");
+                if (match.Success)
+                    details = match.Groups[3].Value.Trim();
+                else if (input.Contains("add a task to"))
+                    details = input[(input.IndexOf("add a task to") + "add a task to".Length)..].Trim();
+                else if (input.Contains("add task to"))
+                    details = input[(input.IndexOf("add task to") + "add task to".Length)..].Trim();
+                else if (input.Contains("create a task to"))
+                    details = input[(input.IndexOf("create a task to") + "create a task to".Length)..].Trim();
+                else if (input.StartsWith("add task"))
+                    details = input["add task".Length..].Trim(new[] { '-', ' ' });
+                else if (input.StartsWith("create task"))
+                    details = input["create task".Length..].Trim(new[] { '-', ' ' });
+
+                return ("addtask", details, null);
+            }
+
+            // 5. Recognize task completion
+            if (Regex.IsMatch(input, @"\b(complete|finish|done|mark as complete)\b.*\btask\b") ||
+                input.StartsWith("complete task-"))
+            {
+                string details = "";
+                var match = Regex.Match(input, @"\btask\b(.*)");
+                if (match.Success)
+                    details = match.Groups[1].Value.Trim();
+                else if (input.StartsWith("complete task-"))
+                    details = input.Substring("complete task-".Length).Trim();
+                return ("completetask", details, null);
+            }
+
+            // 6. Recognize task deletion
+            if (Regex.IsMatch(input, @"\b(delete|remove|discard)\b.*\btask\b") ||
+                input.StartsWith("delete task-"))
+            {
+                string details = "";
+                var match = Regex.Match(input, @"\btask\b(.*)");
+                if (match.Success)
+                    details = match.Groups[1].Value.Trim();
+                else if (input.StartsWith("delete task-"))
+                    details = input.Substring("delete task-".Length).Trim();
+                return ("deletetask", details, null);
+            }
+
+            // 7. Recognize reminders (with more flexible patterns)
+            if (Regex.IsMatch(input, @"\b(remind|reminder|alert|notify)\b") ||
+                input.Contains("remind me to") || input.Contains("set a reminder to") || input.Contains("remind me about"))
+            {
+                DateTime? date = null;
+                if (input.Contains("tomorrow")) date = DateTime.Now.AddDays(1);
+                var inDaysMatch = Regex.Match(input, @"in (\d+) days");
+                if (inDaysMatch.Success && int.TryParse(inDaysMatch.Groups[1].Value, out int days))
+                    date = DateTime.Now.AddDays(days);
+                var onDateMatch = Regex.Match(input, @"on (\d{4}-\d{2}-\d{2}|\w+ \d{1,2}(, \d{4})?)");
+                if (onDateMatch.Success && DateTime.TryParse(onDateMatch.Groups[1].Value, out DateTime parsedDate))
+                    date = parsedDate;
+
+                string details = "";
+                var detailMatch = Regex.Match(input, @"remind(er)?( me)? (to|about)? (.+)", RegexOptions.IgnoreCase);
+                if (detailMatch.Success)
+                    details = detailMatch.Groups[4].Value.Trim();
+                else if (input.Contains("remind me to"))
+                    details = input[(input.IndexOf("remind me to") + "remind me to".Length)..].Trim();
+                else if (input.Contains("set a reminder to"))
+                    details = input[(input.IndexOf("set a reminder to") + "set a reminder to".Length)..].Trim();
+                else if (input.Contains("remind me about"))
+                    details = input[(input.IndexOf("remind me about") + "remind me about".Length)..].Trim();
+
+                details = Regex.Replace(details, @"(in \d+ days|on \d{4}-\d{2}-\d{2}|on \w+ \d{1,2}(, \d{4})?|tomorrow)", "", RegexOptions.IgnoreCase).Trim();
+
+                return ("reminder", details, date);
+            }
+
+            // 8. Recognize topic queries (with synonyms)
+            var topicSynonyms = new Dictionary<string, string[]>
+                {
+                    { "phishing", new[] { "phishing", "scam email", "fake email" } },
+                    { "password", new[] { "password", "passcode", "login code" } },
+                    { "malware", new[] { "malware", "virus", "trojan", "worm", "spyware" } },
+                    { "scam", new[] { "scam", "fraud", "con", "hoax" } },
+                    { "internet safety", new[] { "internet safety", "web safety", "online safety" } },
+                    { "cybersecurity", new[] { "cybersecurity", "cyber security", "cyber threats", "security online" } },
+                    { "data protection", new[] { "data protection", "data privacy", "protect data" } },
+                    { "identity theft", new[] { "identity theft", "stolen identity" } },
+                    { "social engineering", new[] { "social engineering", "manipulation", "trick" } },
+                    { "ransomware", new[] { "ransomware", "ransom virus" } },
+                    { "safe browsing", new[] { "safe browsing", "safe web", "secure browsing" } }
+                };
+            foreach (var kvp in topicSynonyms)
+            {
+                foreach (var syn in kvp.Value)
+                {
+                    if (input.Contains(syn))
+                        return ("topic", kvp.Key, null);
+                }
+            }
+
+            // 9. Recognize help/assistance
+            if (Regex.IsMatch(input, @"\b(help|assist|support|what can you do)\b"))
+                return ("help", "", null);
+
+            // 10. Recognize exit/quit
+            if (Regex.IsMatch(input, @"\b(exit|quit|close|bye|goodbye)\b"))
+                return ("exit", "", null);
+
+            // 11. Activity log/summary detection
+            if (input.Contains("show activity log") || input.Contains("what have you done for me") ||
+                input.Contains("recent actions") || input.Contains("summary"))
+                return ("summary", "", null);
+
+            // 12. Fallback to original topic detection for any missed topics
+            string[] topics = { "phishing", "password", "malware", "scam", "internet safety", "online safety", "cybersecurity", "cyber security", "cyber threats", "data protection", "identity theft", "social engineering", "ransomware", "safe browsing" };
+            foreach (var topic in topics)
+            {
+                if (input.Contains(topic))
+                    return ("topic", topic, null);
+            }
+
+            // Fallback
+            return ("", "", null);
+        }
 
     }
 }
