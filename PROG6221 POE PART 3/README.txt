@@ -257,4 +257,6 @@ This section highlights the new features and how to test them.
 - The UI is modernized for ease of use, with panels for ChatBot, Tasks, Game, and Activity Log.
 - All previous features from Parts 1 and 2 are retained and improved.
 
+YOUTUBE LINK: https://www.youtube.com/watch?v=ARcAknRtVn4
+
 
