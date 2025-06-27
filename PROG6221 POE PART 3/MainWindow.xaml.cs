@@ -4,6 +4,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Linq;
 using System.Media;
+using System.Text.RegularExpressions;
 
 namespace PROG6221_POE_PART_3
 {
@@ -161,38 +162,78 @@ namespace PROG6221_POE_PART_3
             string name = TaskNameBox.Text.Trim();
             string desc = TaskDescBox.Text.Trim();
             int days = 0;
+
+            // Try to parse the Reminder field directly (expecting a number of days)
             int.TryParse(TaskReminderBox.Text.Trim(), out days);
+
+            // If Reminder field is empty or zero, try to extract a number from the description
+            if (days == 0 && !string.IsNullOrEmpty(desc))
+            {
+                var words = desc.Split(' ');
+                for (int i = 0; i < words.Length; i++)
+                {
+                    if (int.TryParse(words[i], out int foundDays))
+                    {
+                        days = foundDays;
+                        break;
+                    }
+                }
+            }
+
             if (!string.IsNullOrEmpty(name))
             {
-                bot.ProcessInput($"add task- {name}");
-                bot.ProcessInput(desc);
+                // Build task details without any leading dash
+                string details = name;
+                if (!string.IsNullOrEmpty(desc))
+                    details += $", {desc}";
                 if (days > 0)
-                    bot.ProcessInput($"remind me in {days} days");
+                    details += $", remind me in {days} days";
+
+                // Notice the space after "add task" — no dash, to avoid adding it to the task name
+                bot.ProcessInput($"add task {details}");
+
                 LoadTasks();
+
             }
         }
+
+
 
         // Handles marking a selected task as complete
         private void CompleteTask_Click(object sender, RoutedEventArgs e)
         {
-            if (TasksList.SelectedItem is string task)
+            string taskName = TaskNameBox.Text.Trim();
+
+            if (!string.IsNullOrEmpty("-" + taskName))
             {
-                var name = task.Split(':')[0].Split(']')[1].Trim();
-                bot.ProcessInput($"complete task- {name}");
+                bot.ProcessInput($"complete task- {taskName}");
                 LoadTasks();
             }
+            else
+            {
+                MessageBox.Show("Please enter the task name in the Task Name field.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
         }
+
+
 
         // Handles deleting a selected task
         private void DeleteTask_Click(object sender, RoutedEventArgs e)
         {
-            if (TasksList.SelectedItem is string task)
+            string taskName = TaskNameBox.Text.Trim();
+
+            if (!string.IsNullOrEmpty(taskName))
             {
-                var name = task.Split(':')[0].Split(']')[1].Trim();
-                bot.ProcessInput($"delete task- {name}");
+                bot.ProcessInput($"delete task- {taskName}");
                 LoadTasks();
             }
+            else
+            {
+                MessageBox.Show("Please enter the task name in the Task Name field.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
         }
+
+
 
         // Loads all tasks from CyberBot and displays them in the UI
         private void LoadTasks()
@@ -271,6 +312,8 @@ namespace PROG6221_POE_PART_3
 
         // REFERENCES:
         // ChatGPT was used to generate prompts and responses for the CyberBot class.
+        // Used for Quiz game creation: https://www.mooict.com/wpf-c-tutorial-create-a-simple-quiz-game-in-visual-studio/
+
 
     }
 }

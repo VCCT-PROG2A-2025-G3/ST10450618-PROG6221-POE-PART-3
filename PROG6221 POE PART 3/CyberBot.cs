@@ -17,9 +17,23 @@ namespace PROG6221_POE_PART_3
         // Returns a formatted string representation of the task for display
         public override string ToString()
         {
-            string status = Completed ? "[Completed]" : "[Pending]";
-            string reminderText = Reminder.HasValue ? $" (Reminder: {Reminder.Value:g})" : "";
-            return $"{status} {Title}: {Description}{reminderText}";
+            string status = Completed ? "(Completed)" : "(Pending)";
+            string reminderText = "";
+            if (Reminder.HasValue)
+            {
+                int amtOfDays = (int)Math.Ceiling((Reminder.Value.Date - DateTime.Now.Date).TotalDays);
+                if (amtOfDays > 0)
+                    reminderText = $"remind me in {amtOfDays} days";
+                else if (amtOfDays == 0)
+                    reminderText = "remind me today";
+                else
+                    reminderText = "Due";
+            }
+            else
+            {
+                reminderText = "No reminder";
+            }
+            return $"{status}: {Title}, {Description}, {reminderText}";
         }
     }
 
@@ -146,7 +160,7 @@ namespace PROG6221_POE_PART_3
             chatOutput = chatOutputCallback;
             gameOutput = gameOutputCallback;
             getUserName = getUserNameCallback;
-            output = chatOutputCallback; // <-- Fix: assign output
+            output = chatOutputCallback;
             userName = null;
         }
 
@@ -243,7 +257,6 @@ namespace PROG6221_POE_PART_3
                 return;
             }
 
-            // --- Existing code below (tasks, topics, etc.) ---
 
             // Activity log command
             if (intent == "summary")
@@ -271,34 +284,41 @@ namespace PROG6221_POE_PART_3
             {
                 var task = new TaskItem { Title = details, Description = details, Reminder = reminderDate, Completed = false };
                 tasks.Add(task);
-                if (reminderDate.HasValue)
-                {
-                    Respond($"Reminder set for \"{details}\" on {reminderDate.Value.ToShortDateString()}.");
-                    LogAction($"Reminder set for \"{details}\" on {reminderDate.Value:g}.");
-                }
-                else
-                {
-                    Respond($"Reminder set for \"{details}\" (no specific date detected).");
-                    LogAction($"Reminder set for \"{details}\" (no specific date).");
-                }
+                LogAction(reminderDate.HasValue
+                    ? $"Reminder set for \"{details}\" on {reminderDate.Value:g}."
+                    : $"Reminder set for \"{details}\" (no specific date).");
                 return;
             }
             // Add a new task
             if (intent == "addtask" && !string.IsNullOrWhiteSpace(details))
             {
-                var task = new TaskItem { Title = details, Description = details, Completed = false };
+                // Split details by comma for name, description, and reminder
+                var parts = details.Split(',', StringSplitOptions.TrimEntries);
+                string title = parts.Length > 0 ? parts[0] : "";
+                string description = parts.Length > 1 ? parts[1] : "";
+                string reminderPhrase = parts.Length > 2 ? parts[2] : "";
+
+                DateTime? reminder = null;
+
+                // Try to extract "remind me in X days" from the reminderPhrase
+                var match = Regex.Match(reminderPhrase, @"remind me in (\d+) days", RegexOptions.IgnoreCase);
+                if (match.Success && int.TryParse(match.Groups[1].Value, out int days))
+                {
+                    reminder = DateTime.Now.AddDays(days);
+                }
+
+                var task = new TaskItem { Title = title, Description = description, Reminder = reminder, Completed = false };
                 tasks.Add(task);
-                Respond($"Task added: \"{details}\". Would you like to set a reminder for this?");
-                LogAction($"Task added: \"{details}\".");
+                LogAction($"Task added: \"{title}\".");
                 return;
             }
+
             // Multi-step task creation: set description
             if (awaitingTaskDescription && pendingTask != null)
             {
                 pendingTask.Description = input;
                 awaitingTaskDescription = false;
                 awaitingTaskReminder = true;
-                Respond("Would you like a reminder for this task? (e.g., \"Remind me in 3 days\" or \"No reminder\")");
                 LogAction($"Task description set for \"{pendingTask.Title}\".");
                 return;
             }
@@ -311,12 +331,10 @@ namespace PROG6221_POE_PART_3
                     if (parts.Length > 0 && int.TryParse(parts[0].Trim(), out int days))
                     {
                         pendingTask.Reminder = DateTime.Now.AddDays(days);
-                        Respond($"Reminder set for {days} days from now.");
                         LogAction($"Reminder set for \"{pendingTask.Title}\" in {days} days.");
                     }
                     else
                     {
-                        Respond("Sorry, I couldn't understand the reminder. No reminder set.");
                         LogAction($"Failed to set reminder for \"{pendingTask.Title}\".");
                     }
                 }
@@ -326,22 +344,18 @@ namespace PROG6221_POE_PART_3
                     if (DateTime.TryParse(dateStr, out DateTime date))
                     {
                         pendingTask.Reminder = date;
-                        Respond($"Reminder set for {date:g}.");
                         LogAction($"Reminder set for \"{pendingTask.Title}\" on {date:g}.");
                     }
                     else
                     {
-                        Respond("Sorry, I couldn't understand the date. No reminder set.");
                         LogAction($"Failed to set reminder for \"{pendingTask.Title}\".");
                     }
                 }
                 else
                 {
-                    Respond("No reminder set for this task.");
                     LogAction($"No reminder set for \"{pendingTask.Title}\".");
                 }
                 tasks.Add(pendingTask);
-                Respond("Task added successfully!");
                 LogAction($"Task added: \"{pendingTask.Title}\".");
                 pendingTask = null;
                 awaitingTaskReminder = false;
@@ -349,9 +363,9 @@ namespace PROG6221_POE_PART_3
             }
 
             // Start multi-step task creation
-            if (input.StartsWith("add task-"))
+            if (input.StartsWith("add task"))
             {
-                string title = input.Substring("add task-".Length).Trim();
+                string title = input.Substring("add task".Length).Trim();
                 if (string.IsNullOrEmpty(title))
                 {
                     Respond("Please provide a title for your task.");
@@ -366,18 +380,7 @@ namespace PROG6221_POE_PART_3
             // View all tasks
             if (input == "view tasks")
             {
-                if (tasks.Count == 0)
-                {
-                    Respond("You have no tasks at the moment.");
-                }
-                else
-                {
-                    Respond("Here are your tasks:");
-                    foreach (var t in tasks)
-                    {
-                        Respond(t.ToString());
-                    }
-                }
+                // No Respond() here; handled by UI
                 LogAction("Viewed tasks.");
                 return;
             }
@@ -389,12 +392,11 @@ namespace PROG6221_POE_PART_3
                 if (task != null)
                 {
                     task.Completed = true;
-                    Respond($"Task \"{title}\" marked as completed.");
                     LogAction($"Task completed: \"{title}\".");
                 }
                 else
                 {
-                    Respond($"Task \"{title}\" not found.");
+                    LogAction($"Task \"{title}\" not found.");
                 }
                 return;
             }
@@ -406,12 +408,11 @@ namespace PROG6221_POE_PART_3
                 if (task != null)
                 {
                     tasks.Remove(task);
-                    Respond($"Task \"{title}\" deleted.");
                     LogAction($"Task deleted: \"{title}\".");
                 }
                 else
                 {
-                    Respond($"Task \"{title}\" not found.");
+                    LogAction($"Task \"{title}\" not found.");
                 }
                 return;
             }
@@ -419,7 +420,7 @@ namespace PROG6221_POE_PART_3
             // Trigger reminders for due tasks
             foreach (var t in tasks.Where(t => t.Reminder.HasValue && !t.Completed && t.Reminder.Value <= DateTime.Now).ToList())
             {
-                Respond($"Reminder: Task \"{t.Title}\" is due! {t.Description}");
+                // No Respond() here; handled by UI if needed
                 t.Reminder = null;
                 LogAction($"Reminder triggered for \"{t.Title}\".");
             }
@@ -633,7 +634,7 @@ namespace PROG6221_POE_PART_3
                 else if (input.Contains("create a task to"))
                     details = input[(input.IndexOf("create a task to") + "create a task to".Length)..].Trim();
                 else if (input.StartsWith("add task"))
-                    details = input["add task".Length..].Trim(new[] { '-', ' ' });
+                    details = input["add task".Length..].Trim(new[] { '-',' ' });
                 else if (input.StartsWith("create task"))
                     details = input["create task".Length..].Trim(new[] { '-', ' ' });
 
@@ -743,6 +744,9 @@ namespace PROG6221_POE_PART_3
             // Fallback
             return ("", "", null);
         }
-
     }
 }
+//------------------------------------------------------------------------------------------------------------------------------------------------------------//
+                        // REFERENCES:
+                        // ChatGPT was used to generate prompts and responses for the CyberBot class.
+                        //---------------------------------------------------------------------------//
