@@ -1,0 +1,82 @@
+﻿<Window x:Class="PROG6221_POE_PART_3.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="CyberBot"
+        WindowState="Maximized"
+        WindowStartupLocation="CenterScreen"
+        Background="#181828"
+        FontFamily="Segoe UI">
+    <DockPanel LastChildFill="True">
+        <!-- Top Navigation -->
+        <StackPanel Orientation="Horizontal" DockPanel.Dock="Top" Background="#23234a" Height="60">
+            <Button Content="ChatBot" Click="ShowChatBot" Margin="10" Width="150" Height="40"/>
+            <Button Content="Tasks" Click="ShowTasks" Margin="10" Width="150" Height="40"/>
+            <Button Content="Game" Click="ShowGame" Margin="10" Width="150" Height="40"/>
+            <Button Content="Activity Log" Click="ShowActivityLog" Margin="10" Width="150" Height="40"/>
+        </StackPanel>
+
+        <!-- Main Content Panels -->
+        <Grid Margin="20" HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
+            <!-- ChatBot Section -->
+            <StackPanel x:Name="ChatBotPanel" Visibility="Visible" Margin="0"
+                        HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,0,10">
+                    <Image Source="bot.jpeg" Width="200" Height="60" Stretch="Uniform" Margin="0,0,10,0"/>
+                    <TextBlock Text="CyberBot" FontSize="36" Foreground="#4e8cff" VerticalAlignment="Center"/>
+                </StackPanel>
+                <ListBox x:Name="ChatHistory"
+                 Background="#23234a" Foreground="White"
+                 Margin="0,0,0,10"
+                 Height="400"
+                 HorizontalAlignment="Stretch"/>    
+                <DockPanel LastChildFill="True">
+                    <TextBox x:Name="UserInput" Height="32" Margin="0,0,10,0" KeyDown="UserInput_KeyDown"
+                             HorizontalAlignment="Stretch" VerticalAlignment="Center" MinWidth="200"/>
+                    <Button Content="Send" Width="80" Click="SendButton_Click"/>
+                </DockPanel>
+            </StackPanel>
+
+            <!-- Tasks Section -->
+            <StackPanel x:Name="TasksPanel" Visibility="Collapsed" Margin="0"
+                        HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
+                <TextBlock Text="Tasks" FontSize="32" Foreground="#ffd966" Margin="0,0,0,10"/>
+                <TextBox x:Name="TaskNameBox" Margin="0,0,0,5"/>
+                <TextBox x:Name="TaskDescBox" Margin="0,0,0,5"/>
+                <TextBox x:Name="TaskReminderBox" Margin="0,0,0,10"/>
+                <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                    <Button Content="Add Task" Width="100" Click="AddTask_Click" Margin="0,0,10,0"/>
+                    <Button Content="Complete Task" Width="120" Click="CompleteTask_Click" Margin="0,0,10,0"/>
+                    <Button Content="Delete Task" Width="100" Click="DeleteTask_Click"/>
+                </StackPanel>
+                <ListBox x:Name="TasksList" Background="#23234a" Foreground="White"
+                         Height="400" Width="800"/>
+            </StackPanel>
+
+            <!-- Game Section -->
+            <StackPanel x:Name="GamePanel" Visibility="Collapsed" Margin="0"
+                        HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
+                <TextBlock Text="Cybersecurity Game" FontSize="32" Foreground="#4effa1" Margin="0,0,0,10"/>
+                <TextBlock x:Name="ScoreTextBlock" Text="Score: 0" FontSize="20" Foreground="#FFD700" Margin="0,0,0,10"/>
+                <ListBox x:Name="GameHistory" Background="#23234a" Foreground="White" Margin="0,0,0,10"
+                         Height="400" Width="800"/>
+                <StackPanel x:Name="AnswerButtonsPanel" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,10,0,10">
+                    <Button x:Name="ButtonA" Content="A" Width="40" Margin="5" Click="QuizAnswerButton_Click"/>
+                    <Button x:Name="ButtonB" Content="B" Width="40" Margin="5" Click="QuizAnswerButton_Click"/>
+                    <Button x:Name="ButtonC" Content="C" Width="40" Margin="5" Click="QuizAnswerButton_Click"/>
+                    <Button x:Name="ButtonD" Content="D" Width="40" Margin="5" Click="QuizAnswerButton_Click"/>
+                </StackPanel>
+                <Button Content="Start Game" Width="120" Click="StartQuiz_Click"/>
+            </StackPanel>
+
+            <!-- Activity Log Section -->
+            <StackPanel x:Name="ActivityLogPanel" Visibility="Collapsed" Margin="0"
+                        HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
+                <TextBlock Text="Activity Log" FontSize="32" Foreground="#93c47d" Margin="0,0,0,10"/>
+                <ListBox x:Name="ActivityLogList" Background="#23234a" Foreground="White"
+                         Height="400" Width="800"/>
+                <Button Content="Show More" Click="ShowMoreActivityLog_Click" Margin="0,10,0,0"/>
+            </StackPanel>
+            
+        </Grid>
+    </DockPanel>
+</Window>
